@@ -39,3 +39,4 @@ public final class SanitizationUtil {
         return clean.trim();
     }
 }
+
