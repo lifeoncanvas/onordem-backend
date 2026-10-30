@@ -40,7 +40,7 @@ public class SecurityConfig {
                 // Security Headers
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp -> csp
-                                .policyDirectives("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:; frame-ancestors 'none'; object-src 'none';")
+                                .policyDirectives("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; media-src 'self' data: https: blob:; font-src 'self' https: data:; frame-ancestors 'none'; object-src 'none';")
                         )
                         .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
                         .xssProtection(xss -> xss.headerValue(org.springframework.security.web.header.writers.XXssProtectionHeaderWriter.HeaderValue.ENABLED_MODE_BLOCK))
@@ -70,9 +70,10 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/error"
                         ).permitAll()
-                        // Public read access for tributes feed
+                        // Public read access for tributes feed and media files
                         .requestMatchers(HttpMethod.GET, "/api/v1/tributes/public-feed").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/feed/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/media/files/**").permitAll()
                         // Admin-only endpoints protected at URL level
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         // All other endpoints require authenticated user

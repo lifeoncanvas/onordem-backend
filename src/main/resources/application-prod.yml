@@ -1,27 +1,46 @@
 # Production configuration for onodem.com
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://db.YOUR_SUPABASE_PROJECT.supabase.co:5432/postgres?sslmode=require}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-lively-shape-b4z1gpns-pooler.c-6.us-east-2.aws.neon.tech:5432/neondb?sslmode=require&prepareThreshold=0}
+    username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: OnodemProdHikariPool
-      maximum-pool-size: 15
-      minimum-idle: 3
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:25}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
       idle-timeout: 300000
-      connection-timeout: 30000
-      max-lifetime: 1200000
+      connection-timeout: 20000
+      max-lifetime: 600000
+      keepalive-time: 30000
+      leak-detection-threshold: 15000
+      connection-test-query: SELECT 1
+      data-source-properties:
+        prepareThreshold: 0
+        preparedStatementCacheQueries: 0
+        tcpKeepAlive: true
+        ApplicationName: onodemBackend-Prod
 
   jpa:
+    open-in-view: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          lob:
+            non_contextual_creation: true
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
 
   flyway:
     enabled: true
     baseline-on-migrate: true
+    baseline-version: 0
     locations: classpath:db/migration
 
 server:
@@ -30,9 +49,11 @@ server:
 
 app:
   domain: onodem.com
+  storage:
+    upload-dir: ${UPLOAD_DIR:uploads/media}
+    base-url: ${BASE_MEDIA_URL:https://api.onodem.com/api/v1/media/files}
   cors:
     allowed-origins:
       - "https://onodem.com"
       - "https://www.onodem.com"
       - "https://api.onodem.com"
-

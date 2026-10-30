@@ -1,20 +1,31 @@
-# Neon PostgreSQL Database Configuration
+# Neon PostgreSQL Database Configuration with Serverless Connection Pool Tuning
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-lively-shape-b4z1gpns-pooler.c-6.us-east-2.aws.neon.tech:5432/neondb?sslmode=require}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-lively-shape-b4z1gpns-pooler.c-6.us-east-2.aws.neon.tech:5432/neondb?sslmode=require&prepareThreshold=0}
     username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
     password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: NeonHikariPool
-      maximum-pool-size: 10
-      minimum-idle: 2
-      idle-timeout: 300000
-      connection-timeout: 30000
-      max-lifetime: 1200000
-      leak-detection-threshold: 60000
+      # Sized specifically for concurrent media uploads, letter attachments, and API requests:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      idle-timeout: 300000              # 5 minutes
+      connection-timeout: 20000        # 20 seconds fail-fast
+      max-lifetime: 600000             # 10 minutes (prevents stale Neon serverless connection drops)
+      keepalive-time: 30000            # 30-sec heartbeat probe (prevents Neon compute sleep)
+      leak-detection-threshold: 15000  # Proactively logs a warning + stack trace if a transaction holds DB > 15s
+      connection-test-query: SELECT 1
+      data-source-properties:
+        prepareThreshold: 0            # Crucial for Neon PgBouncer transaction pooling mode
+        preparedStatementCacheQueries: 0
+        tcpKeepAlive: true
+        ApplicationName: onodemBackend
 
   jpa:
+    # Release DB connection immediately after service/transaction completes.
+    # Prevents holding DB connections open during large picture/audio/letter streaming!
+    open-in-view: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
@@ -25,6 +36,9 @@ spring:
         jdbc:
           lob:
             non_contextual_creation: true
+          batch_size: 25               # Efficient batch inserts for media galleries
+        order_inserts: true
+        order_updates: true
 
   flyway:
     enabled: true

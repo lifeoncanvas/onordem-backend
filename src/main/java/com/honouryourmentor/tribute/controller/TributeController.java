@@ -111,4 +111,16 @@ public class TributeController {
         boolean pinned = tributeService.togglePin(id, currentUser.getId());
         return ResponseEntity.ok(ApiResponse.ok("Pin status updated", pinned));
     }
+
+    @PostMapping("/{id}/media")
+    @Operation(summary = "Attach an uploaded picture, voice note, or letter document to a tribute")
+    public ResponseEntity<ApiResponse<TributeDto>> addMediaToTribute(
+            @PathVariable String id,
+            @AuthenticationPrincipal User currentUser,
+            @RequestParam("mediaUrl") String mediaUrl,
+            @RequestParam(value = "mediaType", defaultValue = "IMAGE") String mediaType
+    ) {
+        TributeDto updated = tributeService.addMediaToTribute(id, currentUser.getId(), mediaUrl, mediaType);
+        return ResponseEntity.ok(ApiResponse.ok("Media attached to tribute successfully", updated));
+    }
 }

@@ -228,6 +228,29 @@ public class TributeService {
         return tribute.isPinned();
     }
 
+    @Transactional
+    public TributeDto addMediaToTribute(String tributeId, String userId, String mediaUrl, String mediaType) {
+        // Enforce user ownership
+        Tribute tribute = tributeRepository.findByIdAndUserId(tributeId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tribute not found or unauthorized: " + tributeId));
+
+        TributeMedia media = TributeMedia.builder()
+                .tribute(tribute)
+                .mediaUrl(mediaUrl)
+                .mediaType(mediaType != null ? mediaType : "IMAGE")
+                .sortOrder(tribute.getMediaList() != null ? tribute.getMediaList().size() : 0)
+                .build();
+
+        mediaRepository.save(media);
+
+        if (tribute.getPhotoUri() == null || tribute.getPhotoUri().isBlank()) {
+            tribute.setPhotoUri(mediaUrl);
+            tributeRepository.save(tribute);
+        }
+
+        return mapToDto(tribute, userId);
+    }
+
     public TributeDto mapToDto(Tribute tribute, String currentUserId) {
         List<String> mediaUrls = new ArrayList<>();
         if (tribute.getMediaList() != null) {
