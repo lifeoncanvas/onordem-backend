@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: onodemBackend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:neon}
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+  servlet:
+    context-path: /
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-exception: false
+    include-binding-errors: never
+
+# Domain & JWT Configuration
+app:
+  domain: ${APP_DOMAIN:onodem.com}
+  jwt:
+    # 256-bit base64/hex secret key (MUST be provided via env in production)
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    access-token-expiration-ms: 86400000      # 24 hours
+    refresh-token-expiration-ms: 604800000    # 7 days
+  cors:
+    allowed-origins:
+      - "https://onodem.com"
+      - "https://www.onodem.com"
+      - "https://api.onodem.com"
+      - "http://localhost:8081"
+      - "http://localhost:19006"
+      - "http://localhost:3000"
+      - "http://127.0.0.1:8081"
+      - "http://10.0.2.2:8081"
+
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    enabled: ${SWAGGER_ENABLED:true}

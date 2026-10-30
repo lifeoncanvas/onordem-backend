@@ -1,0 +1,37 @@
+# Production configuration for onodem.com
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://db.YOUR_SUPABASE_PROJECT.supabase.co:5432/postgres?sslmode=require}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: OnodemProdHikariPool
+      maximum-pool-size: 15
+      minimum-idle: 3
+      idle-timeout: 300000
+      connection-timeout: 30000
+      max-lifetime: 1200000
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+
+app:
+  domain: onodem.com
+  cors:
+    allowed-origins:
+      - "https://onodem.com"
+      - "https://www.onodem.com"
+      - "https://api.onodem.com"
