@@ -14,6 +14,21 @@ spring:
       max-file-size: 25MB          # Supports high-res photos, audio notes, and scanned letters
       max-request-size: 30MB
       file-size-threshold: 2MB     # Files < 2MB stay in RAM; larger stream to disk buffer without JVM heap bloat
+  mail:
+    host: ${MAIL_HOST:smtpout.secureserver.net} # Default GoDaddy SMTP or custom host
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:info@onodem.com}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
+            required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -33,6 +48,11 @@ server:
 # Storage, Domain & JWT Configuration
 app:
   domain: ${APP_DOMAIN:onodem.com}
+  mail:
+    from: ${APP_MAIL_FROM:info@onodem.com}
+    from-name: ${APP_MAIL_FROM_NAME:Honour Your Mentor}
+    app-url: ${APP_WEB_URL:https://onodem.com}
+    enabled: ${MAIL_ENABLED:true}
   storage:
     upload-dir: ${UPLOAD_DIR:uploads/media}
     base-url: ${BASE_MEDIA_URL:https://api.onodem.com/api/v1/media/files}

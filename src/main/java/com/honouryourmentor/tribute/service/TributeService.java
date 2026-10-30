@@ -7,6 +7,7 @@ import com.honouryourmentor.common.util.SanitizationUtil;
 import com.honouryourmentor.engagement.repository.TributeLikeRepository;
 import com.honouryourmentor.mentor.entity.Mentor;
 import com.honouryourmentor.mentor.repository.MentorRepository;
+import com.honouryourmentor.notification.service.EmailService;
 import com.honouryourmentor.tribute.dto.CreateTributeRequest;
 import com.honouryourmentor.tribute.dto.TributeDto;
 import com.honouryourmentor.tribute.dto.UpdateTributeRequest;
@@ -14,6 +15,8 @@ import com.honouryourmentor.tribute.entity.Tribute;
 import com.honouryourmentor.tribute.entity.TributeMedia;
 import com.honouryourmentor.tribute.repository.TributeMediaRepository;
 import com.honouryourmentor.tribute.repository.TributeRepository;
+import com.honouryourmentor.user.entity.User;
+import com.honouryourmentor.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +34,8 @@ public class TributeService {
     private final TributeMediaRepository mediaRepository;
     private final MentorRepository mentorRepository;
     private final TributeLikeRepository likeRepository;
+    private final UserRepository userRepository;
+    private final EmailService emailService;
 
     @Transactional
     public TributeDto createTribute(String userId, CreateTributeRequest request) {
@@ -114,6 +119,29 @@ public class TributeService {
                 m.setLatestActivity("Just now");
                 mentorRepository.save(m);
             });
+        }
+
+        // Send dedication email if mentor email is provided
+        if (request.getRecipientEmail() != null && !request.getRecipientEmail().isBlank()) {
+            String recipientEmail = request.getRecipientEmail().trim();
+            String senderName = request.getSignature();
+            if (senderName == null || senderName.isBlank()) {
+                senderName = userRepository.findById(userId)
+                        .map(User::getName)
+                        .orElse("A Grateful Mentee");
+            }
+            String excerpt = request.getExcerpt() != null && !request.getExcerpt().isBlank()
+                    ? request.getExcerpt()
+                    : (request.getQuote() != null && !request.getQuote().isBlank() ? request.getQuote() : request.getStory());
+            emailService.sendDedicationEmail(
+                    recipientEmail,
+                    mentorName,
+                    senderName,
+                    saved.getTitle(),
+                    saved.getKind(),
+                    excerpt,
+                    saved.getId()
+            );
         }
 
         return mapToDto(saved, userId);

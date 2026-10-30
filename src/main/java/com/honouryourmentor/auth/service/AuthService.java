@@ -6,6 +6,7 @@ import com.honouryourmentor.auth.repository.PasswordResetTokenRepository;
 import com.honouryourmentor.common.exception.BadRequestException;
 import com.honouryourmentor.common.exception.ResourceNotFoundException;
 import com.honouryourmentor.common.exception.UnauthorizedException;
+import com.honouryourmentor.notification.service.EmailService;
 import com.honouryourmentor.security.JwtService;
 import com.honouryourmentor.user.dto.UserProfileDto;
 import com.honouryourmentor.user.entity.User;
@@ -35,6 +36,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
+    private final EmailService emailService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -78,6 +80,9 @@ public class AuthService {
         String refreshToken = jwtService.generateRefreshToken(user);
 
         UserProfileDto userDto = userService.getProfileByUserId(user.getId());
+
+        // Send automated welcome & verification email from info@onodem.com
+        emailService.sendWelcomeEmail(user.getEmail(), user.getName(), user.getUsername());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -155,7 +160,11 @@ public class AuthService {
                 .build();
         resetTokenRepository.save(token);
 
-        return "We sent a 5-digit reset code to " + email + ". Use code: " + otp;
+        // Send automated password reset code email from info@onodem.com
+        String displayName = (user != null) ? user.getName() : "Mentee";
+        emailService.sendPasswordResetOtp(email, displayName, otp);
+
+        return "We sent a 5-digit reset code to " + email + ".";
     }
 
     @Transactional(readOnly = true)
@@ -195,5 +204,8 @@ public class AuthService {
 
         token.setUsed(true);
         resetTokenRepository.save(token);
+
+        // Send automated security confirmation email from info@onodem.com
+        emailService.sendPasswordResetConfirmation(user.getEmail(), user.getName());
     }
 }

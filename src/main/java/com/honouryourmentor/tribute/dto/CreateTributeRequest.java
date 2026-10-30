@@ -51,4 +51,9 @@ public class CreateTributeRequest {
 
     @Builder.Default
     private boolean isShared = false;
+
+    private String recipientEmail;
+
+    @Builder.Default
+    private boolean sendDedicationEmail = false;
 }
