@@ -138,10 +138,12 @@ public class AuthService {
         // Check if user exists (silent if not to avoid enumeration)
         User user = userRepository.findByEmail(email).orElse(null);
 
-        // Generate 5-digit OTP matching the frontend flow
-        String otp = String.format("%05d", new Random().nextInt(100000));
-        // If testing demo email, default to 12345
-        if ("sarita@example.com".equalsIgnoreCase(email)) {
+        // Cryptographically secure random 5-digit OTP
+        java.security.SecureRandom secureRandom = new java.security.SecureRandom();
+        String otp = String.format("%05d", secureRandom.nextInt(100000));
+
+        // Allow demo code only in local/dev mode for automated preview
+        if ("sarita@example.com".equalsIgnoreCase(email) && "dev".equalsIgnoreCase(System.getProperty("spring.profiles.active"))) {
             otp = "12345";
         }
 

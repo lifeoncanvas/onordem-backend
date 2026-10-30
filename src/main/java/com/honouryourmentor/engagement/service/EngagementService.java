@@ -1,7 +1,9 @@
 package com.honouryourmentor.engagement.service;
 
+import com.honouryourmentor.common.exception.BadRequestException;
 import com.honouryourmentor.common.exception.ResourceNotFoundException;
 import com.honouryourmentor.common.exception.UnauthorizedException;
+import com.honouryourmentor.common.util.SanitizationUtil;
 import com.honouryourmentor.engagement.dto.CommentDto;
 import com.honouryourmentor.engagement.dto.CreateCommentRequest;
 import com.honouryourmentor.engagement.dto.LikeStatusDto;
@@ -35,6 +37,10 @@ public class EngagementService {
     public LikeStatusDto toggleLike(String tributeId, String userId) {
         Tribute tribute = tributeRepository.findById(tributeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tribute not found: " + tributeId));
+
+        if ("PRIVATE".equalsIgnoreCase(tribute.getPrivacy())) {
+            throw new BadRequestException("Likes are only enabled for public tributes");
+        }
 
         boolean exists = likeRepository.existsByUserIdAndTributeId(userId, tributeId);
         boolean likedNow;
@@ -76,13 +82,22 @@ public class EngagementService {
         Tribute tribute = tributeRepository.findById(tributeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tribute not found: " + tributeId));
 
+        if ("PRIVATE".equalsIgnoreCase(tribute.getPrivacy()) && !tribute.getUserId().equals(userId)) {
+            throw new BadRequestException("Comments are only enabled for public tributes");
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+
+        String sanitizedContent = SanitizationUtil.sanitize(request.getContent().trim());
+        if (sanitizedContent.isEmpty()) {
+            throw new BadRequestException("Comment cannot be empty");
+        }
 
         TributeComment comment = TributeComment.builder()
                 .userId(userId)
                 .tributeId(tributeId)
-                .content(request.getContent().trim())
+                .content(sanitizedContent)
                 .build();
 
         TributeComment saved = commentRepository.save(comment);
@@ -132,14 +147,20 @@ public class EngagementService {
         TributeComment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment not found: " + commentId));
 
-        if (!comment.getUserId().equals(userId)) {
-            throw new UnauthorizedException("You cannot delete another user's comment");
+        Tribute tribute = tributeRepository.findById(comment.getTributeId()).orElse(null);
+
+        // Allow comment author OR tribute author to delete
+        boolean isCommentAuthor = comment.getUserId().equals(userId);
+        boolean isTributeAuthor = tribute != null && tribute.getUserId().equals(userId);
+
+        if (!isCommentAuthor && !isTributeAuthor) {
+            throw new UnauthorizedException("You are not authorized to delete this comment");
         }
 
-        tributeRepository.findById(comment.getTributeId()).ifPresent(t -> {
-            t.setCommentsCount(Math.max(0, t.getCommentsCount() - 1));
-            tributeRepository.save(t);
-        });
+        if (tribute != null) {
+            tribute.setCommentsCount(Math.max(0, tribute.getCommentsCount() - 1));
+            tributeRepository.save(tribute);
+        }
 
         commentRepository.delete(comment);
     }

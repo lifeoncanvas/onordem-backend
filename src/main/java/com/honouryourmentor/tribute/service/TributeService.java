@@ -2,6 +2,8 @@ package com.honouryourmentor.tribute.service;
 
 import com.honouryourmentor.common.PagedResponse;
 import com.honouryourmentor.common.exception.ResourceNotFoundException;
+import com.honouryourmentor.common.exception.UnauthorizedException;
+import com.honouryourmentor.common.util.SanitizationUtil;
 import com.honouryourmentor.engagement.repository.TributeLikeRepository;
 import com.honouryourmentor.mentor.entity.Mentor;
 import com.honouryourmentor.mentor.repository.MentorRepository;
@@ -32,7 +34,7 @@ public class TributeService {
 
     @Transactional
     public TributeDto createTribute(String userId, CreateTributeRequest request) {
-        String mentorName = request.getMentorName().trim();
+        String mentorName = SanitizationUtil.sanitize(request.getMentorName());
         String mentorId = request.getMentorId();
 
         // If mentorId is missing, resolve or auto-create mentor
@@ -42,8 +44,8 @@ public class TributeService {
                         Mentor newMentor = Mentor.builder()
                                 .createdBy(userId)
                                 .name(mentorName)
-                                .relationship(request.getRelationship() != null ? request.getRelationship() : "Mentor")
-                                .avatarUri(request.getPhotoUri() != null ? request.getPhotoUri() : "")
+                                .relationship(request.getRelationship() != null ? SanitizationUtil.sanitize(request.getRelationship()) : "Mentor")
+                                .avatarUri(request.getPhotoUri() != null ? request.getPhotoUri().trim() : "")
                                 .coverColor("#54000E")
                                 .itemCount(0)
                                 .latestActivity("Just added")
@@ -60,25 +62,25 @@ public class TributeService {
                 .mentorId(mentorId)
                 .mentorName(mentorName)
                 .kind(kind)
-                .title(request.getTitle() != null ? request.getTitle() : "A Tribute to " + mentorName)
-                .relationship(request.getRelationship())
+                .title(SanitizationUtil.sanitize(request.getTitle() != null ? request.getTitle() : "A Tribute to " + mentorName))
+                .relationship(SanitizationUtil.sanitize(request.getRelationship()))
                 .photoUri(request.getPhotoUri())
-                .quote(request.getQuote())
-                .story(request.getStory())
-                .excerpt(request.getExcerpt())
-                .lessonCarried(request.getLessonCarried())
-                .momentToRemember(request.getMomentToRemember())
+                .quote(SanitizationUtil.sanitize(request.getQuote()))
+                .story(SanitizationUtil.sanitize(request.getStory()))
+                .excerpt(SanitizationUtil.sanitize(request.getExcerpt()))
+                .lessonCarried(SanitizationUtil.sanitize(request.getLessonCarried()))
+                .momentToRemember(SanitizationUtil.sanitize(request.getMomentToRemember()))
                 .templateId(request.getTemplateId() != null ? request.getTemplateId() : "classic-elegance")
                 .frameStyle(request.getFrameStyle() != null ? request.getFrameStyle() : "gold-leaf")
                 .typographyStyle(request.getTypographyStyle() != null ? request.getTypographyStyle() : "serif-editorial")
                 .layoutStyle(request.getLayoutStyle())
                 .year(request.getYear())
-                .emotion(request.getEmotion())
+                .emotion(SanitizationUtil.sanitize(request.getEmotion()))
                 .emotionColor(request.getEmotionColor())
-                .mood(request.getMood())
-                .salutation(request.getSalutation())
-                .signoff(request.getSignoff())
-                .signature(request.getSignature())
+                .mood(SanitizationUtil.sanitize(request.getMood()))
+                .salutation(SanitizationUtil.sanitize(request.getSalutation()))
+                .signoff(SanitizationUtil.sanitize(request.getSignoff()))
+                .signature(SanitizationUtil.sanitize(request.getSignature()))
                 .privacy(request.getPrivacy() != null ? request.getPrivacy().toUpperCase() : "PUBLIC")
                 .isPinned(request.isPinned())
                 .isShared(request.isShared())
@@ -121,6 +123,14 @@ public class TributeService {
     public TributeDto getTributeById(String id, String currentUserId) {
         Tribute tribute = tributeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tribute not found with id: " + id));
+
+        // Object-Level Authorization: Protect private tributes
+        if ("PRIVATE".equalsIgnoreCase(tribute.getPrivacy())) {
+            if (currentUserId == null || !tribute.getUserId().equals(currentUserId)) {
+                throw new UnauthorizedException("This tribute is private and can only be viewed by its author");
+            }
+        }
+
         return mapToDto(tribute, currentUserId);
     }
 
@@ -136,6 +146,7 @@ public class TributeService {
     public List<TributeDto> getTributesByMentor(String mentorId, String currentUserId) {
         return tributeRepository.findByMentorIdOrderByCreatedAtDesc(mentorId)
                 .stream()
+                .filter(t -> !"PRIVATE".equalsIgnoreCase(t.getPrivacy()) || (currentUserId != null && t.getUserId().equals(currentUserId)))
                 .map(t -> mapToDto(t, currentUserId))
                 .toList();
     }
@@ -158,29 +169,30 @@ public class TributeService {
 
     @Transactional
     public TributeDto updateTribute(String tributeId, String userId, UpdateTributeRequest request) {
+        // Enforce user ownership
         Tribute tribute = tributeRepository.findByIdAndUserId(tributeId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tribute not found or unauthorized: " + tributeId));
 
-        if (request.getTitle() != null) tribute.setTitle(request.getTitle());
-        if (request.getMentorName() != null) tribute.setMentorName(request.getMentorName());
-        if (request.getRelationship() != null) tribute.setRelationship(request.getRelationship());
+        if (request.getTitle() != null) tribute.setTitle(SanitizationUtil.sanitize(request.getTitle()));
+        if (request.getMentorName() != null) tribute.setMentorName(SanitizationUtil.sanitize(request.getMentorName()));
+        if (request.getRelationship() != null) tribute.setRelationship(SanitizationUtil.sanitize(request.getRelationship()));
         if (request.getPhotoUri() != null) tribute.setPhotoUri(request.getPhotoUri());
-        if (request.getQuote() != null) tribute.setQuote(request.getQuote());
-        if (request.getStory() != null) tribute.setStory(request.getStory());
-        if (request.getExcerpt() != null) tribute.setExcerpt(request.getExcerpt());
-        if (request.getLessonCarried() != null) tribute.setLessonCarried(request.getLessonCarried());
-        if (request.getMomentToRemember() != null) tribute.setMomentToRemember(request.getMomentToRemember());
+        if (request.getQuote() != null) tribute.setQuote(SanitizationUtil.sanitize(request.getQuote()));
+        if (request.getStory() != null) tribute.setStory(SanitizationUtil.sanitize(request.getStory()));
+        if (request.getExcerpt() != null) tribute.setExcerpt(SanitizationUtil.sanitize(request.getExcerpt()));
+        if (request.getLessonCarried() != null) tribute.setLessonCarried(SanitizationUtil.sanitize(request.getLessonCarried()));
+        if (request.getMomentToRemember() != null) tribute.setMomentToRemember(SanitizationUtil.sanitize(request.getMomentToRemember()));
         if (request.getTemplateId() != null) tribute.setTemplateId(request.getTemplateId());
         if (request.getFrameStyle() != null) tribute.setFrameStyle(request.getFrameStyle());
         if (request.getTypographyStyle() != null) tribute.setTypographyStyle(request.getTypographyStyle());
         if (request.getLayoutStyle() != null) tribute.setLayoutStyle(request.getLayoutStyle());
         if (request.getYear() != null) tribute.setYear(request.getYear());
-        if (request.getEmotion() != null) tribute.setEmotion(request.getEmotion());
+        if (request.getEmotion() != null) tribute.setEmotion(SanitizationUtil.sanitize(request.getEmotion()));
         if (request.getEmotionColor() != null) tribute.setEmotionColor(request.getEmotionColor());
-        if (request.getMood() != null) tribute.setMood(request.getMood());
-        if (request.getSalutation() != null) tribute.setSalutation(request.getSalutation());
-        if (request.getSignoff() != null) tribute.setSignoff(request.getSignoff());
-        if (request.getSignature() != null) tribute.setSignature(request.getSignature());
+        if (request.getMood() != null) tribute.setMood(SanitizationUtil.sanitize(request.getMood()));
+        if (request.getSalutation() != null) tribute.setSalutation(SanitizationUtil.sanitize(request.getSalutation()));
+        if (request.getSignoff() != null) tribute.setSignoff(SanitizationUtil.sanitize(request.getSignoff()));
+        if (request.getSignature() != null) tribute.setSignature(SanitizationUtil.sanitize(request.getSignature()));
         if (request.getPrivacy() != null) tribute.setPrivacy(request.getPrivacy().toUpperCase());
         if (request.getIsPinned() != null) tribute.setPinned(request.getIsPinned());
         if (request.getIsShared() != null) tribute.setShared(request.getIsShared());
@@ -191,6 +203,7 @@ public class TributeService {
 
     @Transactional
     public void deleteTribute(String tributeId, String userId) {
+        // Enforce user ownership
         Tribute tribute = tributeRepository.findByIdAndUserId(tributeId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tribute not found or unauthorized: " + tributeId));
         String mentorId = tribute.getMentorId();
@@ -207,6 +220,7 @@ public class TributeService {
 
     @Transactional
     public boolean togglePin(String tributeId, String userId) {
+        // Enforce user ownership
         Tribute tribute = tributeRepository.findByIdAndUserId(tributeId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tribute not found or unauthorized: " + tributeId));
         tribute.setPinned(!tribute.isPinned());

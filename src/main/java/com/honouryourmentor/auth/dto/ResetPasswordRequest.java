@@ -22,6 +22,6 @@ public class ResetPasswordRequest {
     private String code;
 
     @NotBlank(message = "New password cannot be blank")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+    @Size(min = 8, message = "Password must be at least 8 characters long")
     private String newPassword;
 }

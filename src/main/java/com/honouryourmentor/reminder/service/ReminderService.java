@@ -1,6 +1,7 @@
 package com.honouryourmentor.reminder.service;
 
 import com.honouryourmentor.common.exception.ResourceNotFoundException;
+import com.honouryourmentor.common.util.SanitizationUtil;
 import com.honouryourmentor.mentor.entity.Mentor;
 import com.honouryourmentor.mentor.repository.MentorRepository;
 import com.honouryourmentor.reminder.dto.CreateReminderRequest;
@@ -23,16 +24,17 @@ public class ReminderService {
 
     @Transactional
     public ReminderDto createReminder(String userId, CreateReminderRequest request) {
-        Mentor mentor = mentorRepository.findById(request.getMentorId())
-                .orElseThrow(() -> new ResourceNotFoundException("Mentor not found: " + request.getMentorId()));
+        // Enforce user ownership: user can only set reminders for their own mentors
+        Mentor mentor = mentorRepository.findByIdAndCreatedBy(request.getMentorId(), userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Mentor not found or unauthorized: " + request.getMentorId()));
 
         Reminder reminder = Reminder.builder()
                 .userId(userId)
                 .mentorId(mentor.getId())
-                .title(request.getTitle().trim())
+                .title(SanitizationUtil.sanitize(request.getTitle().trim()))
                 .reminderType(request.getReminderType() != null ? request.getReminderType() : "BIRTHDAY")
                 .reminderDate(request.getReminderDate())
-                .notes(request.getNotes())
+                .notes(SanitizationUtil.sanitize(request.getNotes()))
                 .isActive(true)
                 .build();
 
@@ -55,11 +57,12 @@ public class ReminderService {
 
     @Transactional
     public ReminderDto updateReminder(String reminderId, String userId, UpdateReminderRequest request) {
+        // Enforce user ownership
         Reminder reminder = reminderRepository.findByIdAndUserId(reminderId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reminder not found or unauthorized: " + reminderId));
 
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
-            reminder.setTitle(request.getTitle().trim());
+            reminder.setTitle(SanitizationUtil.sanitize(request.getTitle().trim()));
         }
         if (request.getReminderType() != null) {
             reminder.setReminderType(request.getReminderType());
@@ -68,7 +71,7 @@ public class ReminderService {
             reminder.setReminderDate(request.getReminderDate());
         }
         if (request.getNotes() != null) {
-            reminder.setNotes(request.getNotes());
+            reminder.setNotes(SanitizationUtil.sanitize(request.getNotes()));
         }
         if (request.getIsActive() != null) {
             reminder.setActive(request.getIsActive());
@@ -83,6 +86,7 @@ public class ReminderService {
 
     @Transactional
     public void deleteReminder(String reminderId, String userId) {
+        // Enforce user ownership
         Reminder reminder = reminderRepository.findByIdAndUserId(reminderId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reminder not found or unauthorized: " + reminderId));
         reminderRepository.delete(reminder);
