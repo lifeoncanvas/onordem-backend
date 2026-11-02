@@ -78,8 +78,8 @@ com.honouryourmentor/
 ### 🔐 Authentication (`/api/v1/auth`)
 | Method | Endpoint | Description | Public? |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/register` | Register new user account | Yes |
-| `POST` | `/api/v1/auth/login` | Login with email or username | Yes |
+| `POST` | `/api/v1/auth/register` | Register with email and password; phone number is optional | Yes |
+| `POST` | `/api/v1/auth/login` | Login with email, username, or phone number and password | Yes |
 | `POST` | `/api/v1/auth/refresh` | Refresh expired JWT token | Yes |
 | `POST` | `/api/v1/auth/forgot-password` | Send 5-digit OTP to user email | Yes |
 | `POST` | `/api/v1/auth/verify-otp` | Verify 5-digit OTP | Yes |

@@ -58,16 +58,36 @@ public class UserService {
         UserProfile profile = userProfileRepository.findByUserId(userId)
                 .orElseGet(() -> UserProfile.builder().user(user).build());
 
+        String phone = normalizePhone(request.getPhone());
+        if (phone != null) {
+            userProfileRepository.findByPhone(phone)
+                    .filter(existing -> !existing.getUser().getId().equals(userId))
+                    .ifPresent(existing -> {
+                        throw new BadRequestException("Phone number is already in use");
+                    });
+        }
+
         profile.setBio(request.getBio());
         profile.setAvatarUri(request.getAvatarUri());
         if (request.getCoverColor() != null && !request.getCoverColor().isBlank()) {
             profile.setCoverColor(request.getCoverColor());
         }
-        profile.setPhone(request.getPhone());
+        profile.setPhone(phone);
         profile.setLocation(request.getLocation());
         userProfileRepository.save(profile);
 
         return mapToDto(user, profile);
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+        String normalized = phone.trim().replaceAll("[^0-9+]", "");
+        if (!normalized.matches("^\\+?\\d{7,15}$")) {
+            throw new BadRequestException("Phone number must include 7 to 15 digits and an optional country-code +");
+        }
+        return normalized;
     }
 
     @Transactional(readOnly = true)
