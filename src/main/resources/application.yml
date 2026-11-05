@@ -16,19 +16,24 @@ spring:
       file-size-threshold: 2MB     # Files < 2MB stay in RAM; larger stream to disk buffer without JVM heap bloat
   mail:
     host: ${MAIL_HOST:smtpout.secureserver.net} # Default GoDaddy SMTP or custom host
-    port: ${MAIL_PORT:587}
+    port: ${MAIL_PORT:465}
     username: ${MAIL_USERNAME:info@onodem.com}
     password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
           auth: ${MAIL_SMTP_AUTH:true}
+          ssl:
+            enable: ${MAIL_SMTP_SSL_ENABLE:true}
           starttls:
-            enable: ${MAIL_SMTP_STARTTLS:true}
-            required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+            enable: ${MAIL_SMTP_STARTTLS:false}
+          socketFactory:
+            port: ${MAIL_PORT:465}
+            class: javax.net.ssl.SSLSocketFactory
+            fallback: false
+          connectiontimeout: 8000
+          timeout: 8000
+          writetimeout: 8000
   jackson:
     serialization:
       write-dates-as-timestamps: false

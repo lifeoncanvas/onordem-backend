@@ -33,7 +33,8 @@ public class TributeController {
             @AuthenticationPrincipal User currentUser,
             @Valid @RequestBody CreateTributeRequest request
     ) {
-        TributeDto created = tributeService.createTribute(currentUser.getId(), request);
+        String userId = (currentUser != null) ? currentUser.getId() : "community-guest";
+        TributeDto created = tributeService.createTribute(userId, request);
         return ResponseEntity.ok(ApiResponse.ok("Tribute saved successfully", created));
     }
 

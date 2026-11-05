@@ -22,6 +22,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final UserService userService;
+    private final com.honouryourmentor.notification.service.EmailService emailService;
 
     @PostMapping("/register")
     @Operation(summary = "Register new user")
@@ -63,6 +64,13 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
         return ResponseEntity.ok(ApiResponse.ok("Password reset successfully. You can now login.", null));
+    }
+
+    @GetMapping("/test-email")
+    @Operation(summary = "Diagnostic test to verify outbound email delivery from info@onodem.com")
+    public ResponseEntity<ApiResponse<String>> testEmail(@RequestParam(defaultValue = "sharon@onodem.com") String to) {
+        String result = emailService.testEmailDelivery(to);
+        return ResponseEntity.ok(ApiResponse.ok(result, to));
     }
 
     @GetMapping("/me")
