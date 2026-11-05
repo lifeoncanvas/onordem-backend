@@ -61,6 +61,9 @@ public class AuthService {
 
         UserProfileDto userDto = userService.getProfileByUserId(user.getId());
 
+        // Send automated welcome email whenever user signs in as requested
+        emailService.sendWelcomeEmail(user.getEmail(), user.getName(), user.getUsername());
+
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)

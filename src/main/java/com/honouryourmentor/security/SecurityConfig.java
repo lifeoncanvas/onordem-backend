@@ -65,13 +65,15 @@ public class SecurityConfig {
                                 "/api/v1/auth/forgot-password",
                                 "/api/v1/auth/verify-otp",
                                 "/api/v1/auth/reset-password",
+                                "/api/v1/auth/test-email",
                                 "/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/error"
                         ).permitAll()
-                        // Public read access for tributes feed and media files
+                        // Public read access for tributes feed and media files + public tribute creation
                         .requestMatchers(HttpMethod.GET, "/api/v1/tributes/public-feed").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/tributes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/feed/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/media/files/**").permitAll()
                         // Admin-only endpoints protected at URL level

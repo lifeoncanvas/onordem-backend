@@ -213,7 +213,11 @@ public class EmailService {
     }
 
     /**
-     * Core email dispatch method using Spring JavaMailSender with graceful logging fallback.
+     * Core email dispatch method using Spring JavaMailSender with resilient multi-tier fallback:
+     *   Tier 1: Configured JavaMailSender (smtpout.secureserver.net:465 SSL)
+     *   Tier 2: Host Local Exim Relay (127.0.0.1:25 without auth on GoDaddy cPanel)
+     *   Tier 3: GoDaddy Shared Hosting Relay (relay-hosting.secureserver.net:25 without auth)
+     *   Tier 4: Structured backup logging for audit & immediate recovery
      */
     private void sendEmail(String toEmail, String subject, String htmlBody) {
         if (!mailEnabled) {
@@ -221,27 +225,102 @@ public class EmailService {
             return;
         }
 
-        if (mailSender == null) {
-            log.warn("[EMAIL SENDER UNAVAILABLE] JavaMailSender is not initialized. Email from {} to {}: {}", fromEmail, toEmail, subject);
+        // Tier 1: Primary mailSender
+        if (mailSender != null) {
+            try {
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+                helper.setFrom(fromEmail, fromName);
+                helper.setTo(toEmail);
+                helper.setSubject(subject);
+                helper.setText(htmlBody, true); // true = HTML
+
+                mailSender.send(message);
+                log.info("[EMAIL SENT - PRIMARY] Successfully sent automated email from {} to {} | Subject: {}", fromEmail, toEmail, subject);
+                return;
+            } catch (Exception ex) {
+                log.warn("[EMAIL PRIMARY FAILED] Could not dispatch email from {} to {} via primary SMTP: {}. Attempting host relay fallbacks...", fromEmail, toEmail, ex.getMessage());
+            }
+        }
+
+        // Tier 2 & 3: Host Relay Fallback (GoDaddy local Exim on 127.0.0.1:25 or relay-hosting.secureserver.net:25)
+        if (tryHostRelayFallback(toEmail, subject, htmlBody)) {
             return;
         }
 
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        // Tier 4: Backup log so no OTP or token is ever lost
+        log.error("[EMAIL ERROR] All SMTP delivery routes failed for email to {}. Stored in backup log.", toEmail);
+        log.info("[EMAIL BACKUP LOG] To: {} | Subject: {}\n{}", toEmail, subject, htmlBody);
+    }
 
+    private boolean tryHostRelayFallback(String toEmail, String subject, String htmlBody) {
+        // Try Tier 2: 127.0.0.1:25 (local Exim server on GoDaddy cPanel VPS)
+        try {
+            org.springframework.mail.javamail.JavaMailSenderImpl localSender = new org.springframework.mail.javamail.JavaMailSenderImpl();
+            localSender.setHost("127.0.0.1");
+            localSender.setPort(25);
+            java.util.Properties props = localSender.getJavaMailProperties();
+            props.put("mail.smtp.auth", "false");
+            props.put("mail.smtp.starttls.enable", "false");
+            props.put("mail.smtp.connectiontimeout", "3000");
+            props.put("mail.smtp.timeout", "3000");
+
+            MimeMessage message = localSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(toEmail);
             helper.setSubject(subject);
-            helper.setText(htmlBody, true); // true = HTML
+            helper.setText(htmlBody, true);
 
-            mailSender.send(message);
-            log.info("[EMAIL SENT] Successfully sent automated email from {} to {} | Subject: {}", fromEmail, toEmail, subject);
-        } catch (Exception ex) {
-            log.error("[EMAIL ERROR] Could not dispatch email from {} to {}: {}. Will log email content for tracking.", fromEmail, toEmail, ex.getMessage());
-            // Log fallback so OTP / important messages are never completely lost if SMTP is offline
-            log.info("[EMAIL BACKUP LOG] To: {} | Subject: {}\n{}", toEmail, subject, htmlBody);
+            localSender.send(message);
+            log.info("[EMAIL SENT - LOCAL RELAY] Delivered via 127.0.0.1:25 to {}", toEmail);
+            return true;
+        } catch (Exception e1) {
+            log.debug("127.0.0.1:25 relay not reachable: {}", e1.getMessage());
         }
+
+        // Try Tier 3: relay-hosting.secureserver.net:25 (GoDaddy internal server relay)
+        try {
+            org.springframework.mail.javamail.JavaMailSenderImpl gdRelaySender = new org.springframework.mail.javamail.JavaMailSenderImpl();
+            gdRelaySender.setHost("relay-hosting.secureserver.net");
+            gdRelaySender.setPort(25);
+            java.util.Properties props = gdRelaySender.getJavaMailProperties();
+            props.put("mail.smtp.auth", "false");
+            props.put("mail.smtp.starttls.enable", "false");
+            props.put("mail.smtp.connectiontimeout", "4000");
+            props.put("mail.smtp.timeout", "4000");
+
+            MimeMessage message = gdRelaySender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(toEmail);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
+
+            gdRelaySender.send(message);
+            log.info("[EMAIL SENT - GODADDY RELAY] Delivered via relay-hosting.secureserver.net:25 to {}", toEmail);
+            return true;
+        } catch (Exception e2) {
+            log.debug("relay-hosting.secureserver.net:25 not reachable: {}", e2.getMessage());
+        }
+
+        return false;
+    }
+
+    /**
+     * Diagnostic testing method to verify live email delivery and return detailed status.
+     */
+    public String testEmailDelivery(String toEmail) {
+        String testSubject = "Test Email from Honour Your Mentor (info@onodem.com)";
+        String testContent = buildEmailTemplate(
+                "SMTP Test Delivery",
+                "Verification of automated email delivery system",
+                "<p style='color: #E4E4E7; font-size: 15px;'>This is a test email sent from <strong>info@onodem.com</strong> to verify that outbound email dispatch is operational.</p>"
+        );
+
+        sendEmail(toEmail, testSubject, testContent);
+        return "Dispatched test email to " + toEmail + " from " + fromEmail + ". Check inbox or spam.";
     }
 
     /**
