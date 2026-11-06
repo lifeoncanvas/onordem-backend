@@ -21,6 +21,8 @@ public class TributeDto {
     private String relationship;
     private String photoUri;
     private List<String> additionalImages;
+    private List<String> videoUris;
+    private String audioUri;
     private String quote;
     private String story;
     private String excerpt;

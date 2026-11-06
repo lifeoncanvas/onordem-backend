@@ -31,4 +31,14 @@ public class UpdateProfileRequest {
     @Pattern(regexp = "^$|^\\+?[0-9][0-9\\s().-]{5,28}[0-9]$", message = "Invalid phone number")
     private String phone;
     private String location;
+
+    /** ISO date "YYYY-MM-DD". Only updated when present. */
+    @Pattern(regexp = "^$|^\\d{4}-\\d{2}-\\d{2}$", message = "Birthday must be YYYY-MM-DD")
+    private String birthday;
+    /** Only updated when present. */
+    private String gender;
+    /** Only updated when present. */
+    private java.util.List<String> honouring;
+    /** Only updated when present. */
+    private Boolean setupComplete;
 }

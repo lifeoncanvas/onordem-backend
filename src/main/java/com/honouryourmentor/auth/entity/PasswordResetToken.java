@@ -33,6 +33,10 @@ public class PasswordResetToken extends BaseEntity {
     @Builder.Default
     private boolean used = false;
 
+    @Column(name = "failed_attempts", nullable = false)
+    @Builder.Default
+    private int failedAttempts = 0;
+
     @PrePersist
     @Override
     protected void onCreate() {

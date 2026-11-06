@@ -2,6 +2,7 @@ package com.honouryourmentor.user.service;
 
 import com.honouryourmentor.common.exception.BadRequestException;
 import com.honouryourmentor.common.exception.ResourceNotFoundException;
+import com.honouryourmentor.common.util.SanitizationUtil;
 import com.honouryourmentor.user.dto.UpdateProfileRequest;
 import com.honouryourmentor.user.dto.UserProfileDto;
 import com.honouryourmentor.user.dto.UserSummaryDto;
@@ -50,7 +51,7 @@ public class UserService {
                     throw new BadRequestException("Email is already in use");
                 });
 
-        user.setName(request.getName().trim());
+        user.setName(SanitizationUtil.sanitize(request.getName().trim()));
         user.setUsername(request.getUsername().trim().replace("@", ""));
         user.setEmail(request.getEmail().trim().toLowerCase());
         userRepository.save(user);
@@ -67,16 +68,58 @@ public class UserService {
                     });
         }
 
-        profile.setBio(request.getBio());
+        profile.setBio(SanitizationUtil.sanitize(request.getBio()));
         profile.setAvatarUri(request.getAvatarUri());
         if (request.getCoverColor() != null && !request.getCoverColor().isBlank()) {
             profile.setCoverColor(request.getCoverColor());
         }
         profile.setPhone(phone);
-        profile.setLocation(request.getLocation());
+        profile.setLocation(SanitizationUtil.sanitize(request.getLocation()));
+        applySetupFields(profile, request);
         userProfileRepository.save(profile);
 
         return mapToDto(user, profile);
+    }
+
+    /** Minimum age to hold an account (also enforced in the app). */
+    private static final int MIN_AGE = 10;
+    private static final java.util.Set<String> GENDERS = java.util.Set.of("female", "male");
+
+    private void applySetupFields(UserProfile profile, UpdateProfileRequest request) {
+        if (request.getBirthday() != null && !request.getBirthday().isBlank()) {
+            java.time.LocalDate birthday;
+            try {
+                birthday = java.time.LocalDate.parse(request.getBirthday());
+            } catch (java.time.format.DateTimeParseException e) {
+                throw new BadRequestException("Birthday must be a valid date (YYYY-MM-DD)");
+            }
+            java.time.LocalDate today = java.time.LocalDate.now();
+            if (birthday.isAfter(today)) {
+                throw new BadRequestException("Birthday can't be in the future");
+            }
+            if (java.time.Period.between(birthday, today).getYears() < MIN_AGE) {
+                throw new BadRequestException("You need to be at least " + MIN_AGE + " to use Honour Your Mentor");
+            }
+            profile.setBirthday(birthday);
+        }
+        if (request.getGender() != null) {
+            String gender = request.getGender().trim().toLowerCase();
+            if (!gender.isEmpty() && !GENDERS.contains(gender)) {
+                throw new BadRequestException("Gender must be female or male");
+            }
+            profile.setGender(gender.isEmpty() ? null : gender);
+        }
+        if (request.getHonouring() != null) {
+            String joined = request.getHonouring().stream()
+                    .filter(v -> v != null && v.matches("^[a-z-]{1,30}$"))
+                    .distinct()
+                    .limit(12)
+                    .collect(java.util.stream.Collectors.joining(","));
+            profile.setHonouring(joined.isEmpty() ? null : joined);
+        }
+        if (request.getSetupComplete() != null) {
+            profile.setSetupComplete(request.getSetupComplete());
+        }
     }
 
     private String normalizePhone(String phone) {
@@ -118,6 +161,12 @@ public class UserService {
                 .coverColor(profile != null ? profile.getCoverColor() : "#54000E")
                 .phone(profile != null ? profile.getPhone() : "")
                 .location(profile != null ? profile.getLocation() : "")
+                .birthday(profile != null && profile.getBirthday() != null ? profile.getBirthday().toString() : null)
+                .gender(profile != null ? profile.getGender() : null)
+                .honouring(profile != null && profile.getHonouring() != null
+                        ? java.util.Arrays.asList(profile.getHonouring().split(","))
+                        : java.util.List.of())
+                .setupComplete(profile != null && profile.isSetupComplete())
                 .build();
     }
 }

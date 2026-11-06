@@ -26,6 +26,10 @@ public class CreateTributeRequest {
     private String relationship;
     private String photoUri;
     private List<String> additionalImages;
+    /** Uploaded video URLs (stored as VIDEO media). */
+    private List<String> videoUris;
+    /** Uploaded voice note URL (stored as AUDIO media). */
+    private String audioUri;
     private String quote;
     private String story;
     private String excerpt;

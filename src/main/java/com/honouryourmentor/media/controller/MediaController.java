@@ -89,7 +89,8 @@ public class MediaController {
     }
 
     @GetMapping("/pool-health")
-    @Operation(summary = "Inspect database connection pool metrics during media workloads")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Admin: Inspect database connection pool metrics during media workloads")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getConnectionPoolMetrics() {
         Map<String, Object> metrics = databasePoolConfig.getPoolMetrics();
         return ResponseEntity.ok(ApiResponse.ok(metrics));

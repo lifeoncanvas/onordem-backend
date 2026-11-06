@@ -92,11 +92,19 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private String getClientIP(HttpServletRequest request) {
-        String xfHeader = request.getHeader("X-Forwarded-For");
-        if (xfHeader == null || xfHeader.isBlank() || "unknown".equalsIgnoreCase(xfHeader)) {
-            return request.getRemoteAddr();
+        String remoteAddr = request.getRemoteAddr();
+        // Only trust X-Forwarded-For header when request is routed via trusted local reverse proxy
+        if (isLoopback(remoteAddr)) {
+            String xfHeader = request.getHeader("X-Forwarded-For");
+            if (xfHeader != null && !xfHeader.isBlank() && !"unknown".equalsIgnoreCase(xfHeader)) {
+                return xfHeader.split(",")[0].trim();
+            }
         }
-        return xfHeader.split(",")[0].trim();
+        return remoteAddr != null ? remoteAddr : "unknown";
+    }
+
+    private boolean isLoopback(String ip) {
+        return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip);
     }
 
     private static class RequestCounter {

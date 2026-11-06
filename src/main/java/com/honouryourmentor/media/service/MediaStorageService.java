@@ -33,12 +33,15 @@ public class MediaStorageService {
     private final Path rootLocation;
     private final String baseUrl;
 
-    private static final long MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
+    private static final long MAX_FILE_SIZE = 25L * 1024 * 1024; // 25 MB for photos, audio and documents
+    private static final long MAX_VIDEO_SIZE = 100L * 1024 * 1024; // 100 MB for videos
+    private static final Set<String> VIDEO_EXTENSIONS = Set.of("mp4", "mov", "m4v", "3gp", "webm");
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             "jpg", "jpeg", "png", "webp", "gif", "heic",
             "pdf", "txt", "doc", "docx",
-            "mp3", "m4a", "wav", "aac", "ogg"
+            "mp3", "m4a", "wav", "aac", "ogg",
+            "mp4", "mov", "m4v", "3gp", "webm"
     );
 
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
@@ -49,7 +52,9 @@ public class MediaStorageService {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             // Audio Notes
             "audio/mpeg", "audio/mp3", "audio/m4a", "audio/x-m4a", "audio/wav", "audio/x-wav",
-            "audio/aac", "audio/ogg", "audio/webm"
+            "audio/aac", "audio/ogg", "audio/webm",
+            // Video
+            "video/mp4", "video/quicktime", "video/x-m4v", "video/3gpp", "video/webm"
     );
 
     public MediaStorageService(
@@ -79,8 +84,11 @@ public class MediaStorageService {
             throw new BadRequestException("Cannot upload an empty file");
         }
 
-        if (file.getSize() > MAX_FILE_SIZE) {
-            throw new BadRequestException("File size exceeds 25MB limit");
+        String declaredType = file.getContentType() != null ? file.getContentType().toLowerCase() : "";
+        boolean isVideoUpload = declaredType.startsWith("video/");
+        long limit = isVideoUpload ? MAX_VIDEO_SIZE : MAX_FILE_SIZE;
+        if (file.getSize() > limit) {
+            throw new BadRequestException(isVideoUpload ? "Video exceeds the 100MB limit" : "File size exceeds 25MB limit");
         }
 
         String originalFilename = StringUtils.cleanPath(
@@ -172,6 +180,13 @@ public class MediaStorageService {
         }
         if (Set.of("mp3", "m4a", "wav", "aac", "ogg").contains(extension)) {
             return "AUDIO";
+        }
+        if (VIDEO_EXTENSIONS.contains(extension)) {
+            // .webm is used for both browser voice recordings and videos
+            if ("webm".equals(extension) && contentType != null && contentType.toLowerCase().startsWith("audio/")) {
+                return "AUDIO";
+            }
+            return "VIDEO";
         }
         if (Set.of("pdf", "txt", "doc", "docx").contains(extension)) {
             return "LETTER_DOC";

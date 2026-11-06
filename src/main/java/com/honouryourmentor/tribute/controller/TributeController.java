@@ -52,9 +52,11 @@ public class TributeController {
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal User currentUser
     ) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.min(Math.max(1, size), 50);
         String currentUserId = currentUser != null ? currentUser.getId() : null;
         PagedResponse<TributeDto> feed = tributeService.getPublicFeed(
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")),
+                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt")),
                 currentUserId
         );
         return ResponseEntity.ok(ApiResponse.ok(feed));

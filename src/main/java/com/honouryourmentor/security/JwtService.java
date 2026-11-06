@@ -76,14 +76,31 @@ public class JwtService {
                 .getPayload();
     }
 
-    private SecretKey getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey.length() % 4 != 0 ? 
+    /** Secrets that were ever committed to the repository. They are public, so refuse to sign with them. */
+    private static final java.util.Set<String> KNOWN_LEAKED_SECRETS = java.util.Set.of(
+            "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+    );
+
+    private SecretKey signingKey;
+
+    @jakarta.annotation.PostConstruct
+    void initSigningKey() {
+        if (secretKey == null || secretKey.isBlank()) {
+            throw new IllegalStateException("JWT_SECRET is not set. Provide a random secret of at least 32 bytes.");
+        }
+        if (KNOWN_LEAKED_SECRETS.contains(secretKey.trim())) {
+            throw new IllegalStateException("JWT_SECRET is a publicly known value from the repository. Generate a new one.");
+        }
+        // Same decoding rule as before, so tokens signed with an existing valid secret stay valid.
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey.length() % 4 != 0 ?
                 java.util.Base64.getEncoder().encodeToString(secretKey.getBytes()) : secretKey);
         if (keyBytes.length < 32) {
-            byte[] padded = new byte[32];
-            System.arraycopy(keyBytes, 0, padded, 0, Math.min(keyBytes.length, 32));
-            keyBytes = padded;
+            throw new IllegalStateException("JWT_SECRET is too short: it must decode to at least 32 bytes (256 bits).");
         }
-        return Keys.hmacShaKeyFor(keyBytes);
+        this.signingKey = Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    private SecretKey getSignInKey() {
+        return signingKey;
     }
 }

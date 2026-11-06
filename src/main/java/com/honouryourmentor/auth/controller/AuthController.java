@@ -67,7 +67,8 @@ public class AuthController {
     }
 
     @GetMapping("/test-email")
-    @Operation(summary = "Diagnostic test to verify outbound email delivery from info@onodem.com")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Diagnostic test to verify outbound email delivery from info@onodem.com (Admin only)")
     public ResponseEntity<ApiResponse<String>> testEmail(@RequestParam(defaultValue = "sharon@onodem.com") String to) {
         String result = emailService.testEmailDelivery(to);
         return ResponseEntity.ok(ApiResponse.ok(result, to));

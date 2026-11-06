@@ -39,6 +39,21 @@ public class UserProfile extends BaseEntity {
     @Column(name = "location", length = 120)
     private String location;
 
+    /** Private: used for the age check, never shown publicly. */
+    @Column(name = "birthday")
+    private java.time.LocalDate birthday;
+
+    @Column(name = "gender", length = 40)
+    private String gender;
+
+    /** Comma-separated kinds of people the user honours, e.g. "teacher,parent". */
+    @Column(name = "honouring", columnDefinition = "TEXT")
+    private String honouring;
+
+    @Column(name = "setup_complete", nullable = false)
+    @Builder.Default
+    private boolean setupComplete = false;
+
     @PrePersist
     @Override
     protected void onCreate() {

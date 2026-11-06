@@ -1,7 +1,11 @@
 package com.honouryourmentor.auth.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -19,7 +23,6 @@ import com.honouryourmentor.auth.dto.VerifyOtpRequest;
 import com.honouryourmentor.auth.entity.PasswordResetToken;
 import com.honouryourmentor.auth.repository.PasswordResetTokenRepository;
 import com.honouryourmentor.common.exception.BadRequestException;
-import com.honouryourmentor.common.exception.ResourceNotFoundException;
 import com.honouryourmentor.common.exception.UnauthorizedException;
 import com.honouryourmentor.notification.service.EmailService;
 import com.honouryourmentor.security.JwtService;
@@ -36,6 +39,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AuthService {
 
+    /** Wrong-code attempts allowed per issued OTP before it is burned and a new one must be requested. */
+    private static final int MAX_OTP_ATTEMPTS = 5;
+    private static final long OTP_TTL_MINUTES = 15;
+    private static final String INVALID_CODE_MESSAGE = "Invalid or expired verification code";
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final PasswordResetTokenRepository resetTokenRepository;
@@ -44,54 +54,6 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
     private final EmailService emailService;
-
-    @Transactional(readOnly = true)
-    public AuthResponse login(LoginRequest request) {
-        String identifier = request.getEmailOrUsername().trim();
-
-        User user = userRepository.findByEmail(identifier.toLowerCase())
-                .or(() -> userRepository.findByUsername(identifier.toLowerCase()))
-                .orElseThrow(() -> new UnauthorizedException("Invalid email/username or password"));
-
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword()));
-
-        String accessToken = jwtService.generateAccessToken(user, user.getId());
-        String refreshToken = jwtService.generateRefreshToken(user);
-
-        UserProfileDto userDto = userService.getProfileByUserId(user.getId());
-
-        // Send automated welcome email whenever user signs in as requested
-        emailService.sendWelcomeEmail(user.getEmail(), user.getName(), user.getUsername());
-
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .user(userDto)
-                .build();
-    }
-
-    @Transactional(readOnly = true)
-    public AuthResponse refreshToken(RefreshTokenRequest request) {
-        String refreshToken = request.getRefreshToken();
-        String username = jwtService.extractUsername(refreshToken);
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
-
-        if (!jwtService.isTokenValid(refreshToken, user)) {
-            throw new UnauthorizedException("Expired or invalid refresh token");
-        }
-
-        String newAccessToken = jwtService.generateAccessToken(user, user.getId());
-        UserProfileDto userDto = userService.getProfileByUserId(user.getId());
-
-        return AuthResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(refreshToken)
-                .user(userDto)
-                .build();
-    }
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -152,7 +114,6 @@ public class AuthService {
                 .build();
     }
 
-<<<<<<< HEAD
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         String identifier = request.getEmailOrUsername().trim();
@@ -161,13 +122,15 @@ public class AuthService {
                 .orElseThrow(() -> new UnauthorizedException("Invalid email/username or password"));
 
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword())
-        );
+                new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword()));
 
         String accessToken = jwtService.generateAccessToken(user, user.getId());
         String refreshToken = jwtService.generateRefreshToken(user);
 
         UserProfileDto userDto = userService.getProfileByUserId(user.getId());
+
+        // Send automated welcome email whenever user signs in as requested
+        emailService.sendWelcomeEmail(user.getEmail(), user.getName(), user.getUsername());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -176,9 +139,31 @@ public class AuthService {
                 .build();
     }
 
-    private java.util.Optional<User> findUserByIdentifier(String identifier) {
+    @Transactional(readOnly = true)
+    public AuthResponse refreshToken(RefreshTokenRequest request) {
+        String refreshToken = request.getRefreshToken();
+        String username = jwtService.extractUsername(refreshToken);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
+
+        if (!jwtService.isTokenValid(refreshToken, user)) {
+            throw new UnauthorizedException("Expired or invalid refresh token");
+        }
+
+        String newAccessToken = jwtService.generateAccessToken(user, user.getId());
+        UserProfileDto userDto = userService.getProfileByUserId(user.getId());
+
+        return AuthResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(refreshToken)
+                .user(userDto)
+                .build();
+    }
+
+    private Optional<User> findUserByIdentifier(String identifier) {
         if (isPhoneIdentifier(identifier)) {
-            java.util.Optional<User> phoneUser = userProfileRepository.findByPhone(normalizePhone(identifier))
+            Optional<User> phoneUser = userProfileRepository.findByPhone(normalizePhone(identifier))
                     .map(UserProfile::getUser);
             if (phoneUser.isPresent()) {
                 return phoneUser;
@@ -206,87 +191,53 @@ public class AuthService {
         return normalized;
     }
 
-    @Transactional(readOnly = true)
-    public AuthResponse refreshToken(RefreshTokenRequest request) {
-        String refreshToken = request.getRefreshToken();
-        String username = jwtService.extractUsername(refreshToken);
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
-
-        if (!jwtService.isTokenValid(refreshToken, user)) {
-            throw new UnauthorizedException("Expired or invalid refresh token");
-        }
-
-        String newAccessToken = jwtService.generateAccessToken(user, user.getId());
-        UserProfileDto userDto = userService.getProfileByUserId(user.getId());
-
-        return AuthResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(refreshToken)
-                .user(userDto)
-                .build();
-    }
-
-=======
->>>>>>> 1a6857c79cdb99c03b439158ca0bd78966c6c94e
     @Transactional
     public String requestPasswordReset(ForgotPasswordRequest request) {
         String email = request.getEmail().trim().toLowerCase();
-        // Check if user exists (silent if not to avoid enumeration)
+        String genericMessage = "If an account exists for " + email
+                + ", we sent a 5-digit reset code to it. The code expires in " + OTP_TTL_MINUTES + " minutes.";
+
+        // Same response whether or not the account exists, to avoid account enumeration.
+        // Only real accounts get a token and an email, so this endpoint can't be used to spam arbitrary inboxes.
         User user = userRepository.findByEmail(email).orElse(null);
-
-        // Cryptographically secure random 5-digit OTP
-        java.security.SecureRandom secureRandom = new java.security.SecureRandom();
-        String otp = String.format("%05d", secureRandom.nextInt(100000));
-
-        // Allow demo code only in local/dev mode for automated preview
-        if ("sarita@example.com".equalsIgnoreCase(email)
-                && "dev".equalsIgnoreCase(System.getProperty("spring.profiles.active"))) {
-            otp = "12345";
+        if (user == null) {
+            return genericMessage;
         }
 
+        String otp = String.format("%05d", SECURE_RANDOM.nextInt(100000));
+
+        // Only the newest code is ever checked (see findActiveToken), so issuing a new one supersedes older ones.
         PasswordResetToken token = PasswordResetToken.builder()
                 .email(email)
                 .otpCode(otp)
-                .expiresAt(Instant.now().plus(15, ChronoUnit.MINUTES))
+                .expiresAt(Instant.now().plus(OTP_TTL_MINUTES, ChronoUnit.MINUTES))
                 .used(false)
+                .failedAttempts(0)
                 .build();
         resetTokenRepository.save(token);
 
-        // Send automated password reset code email from info@onodem.com
-        String displayName = (user != null) ? user.getName() : "Mentee";
-        emailService.sendPasswordResetOtp(email, displayName, otp);
+        emailService.sendPasswordResetOtp(email, user.getName(), otp);
 
-        return "We sent a 5-digit reset code to " + email
-                + ". (For testing or immediate verification, code 12345 is accepted).";
+        return genericMessage;
     }
 
-    @Transactional
+    /**
+     * Checks a code without consuming it. Counts wrong guesses, so it must run in a writable transaction.
+     * noRollbackFor keeps the attempt counter even though a wrong code throws.
+     */
+    @Transactional(noRollbackFor = BadRequestException.class)
+    public boolean verifyOtp(VerifyOtpRequest request) {
+        checkCode(request.getEmail().trim().toLowerCase(), request.getCode().trim());
+        return true;
+    }
+
+    @Transactional(noRollbackFor = BadRequestException.class)
     public void resetPassword(ResetPasswordRequest request) {
         String email = request.getEmail().trim().toLowerCase();
-        String code = request.getCode().trim();
-
-        // Testing master code accepted for QA verification
-        if ("12345".equals(code)) {
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
-            user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-            userRepository.save(user);
-            emailService.sendPasswordResetConfirmation(user.getEmail(), user.getName());
-            return;
-        }
-
-        PasswordResetToken token = resetTokenRepository
-                .findTopByEmailAndOtpCodeAndUsedFalseOrderByCreatedAtDesc(email, code)
-                .orElseThrow(() -> new BadRequestException("Invalid or expired verification code"));
-
-        if (token.getExpiresAt().isBefore(Instant.now())) {
-            throw new BadRequestException("Verification code has expired");
-        }
+        PasswordResetToken token = checkCode(email, request.getCode().trim());
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+                .orElseThrow(() -> new BadRequestException(INVALID_CODE_MESSAGE));
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
@@ -298,24 +249,34 @@ public class AuthService {
         emailService.sendPasswordResetConfirmation(user.getEmail(), user.getName());
     }
 
-    @Transactional(readOnly = true)
-    public boolean verifyOtp(VerifyOtpRequest request) {
-        String email = request.getEmail().trim().toLowerCase();
-        String code = request.getCode().trim();
+    /**
+     * Validates the code against the newest unused token for this email.
+     * A wrong code increments the token's failure counter; after MAX_OTP_ATTEMPTS the token is burned,
+     * so a 5-digit code can't be brute-forced.
+     */
+    private PasswordResetToken checkCode(String email, String code) {
+        PasswordResetToken token = resetTokenRepository.findTopByEmailAndUsedFalseOrderByCreatedAtDesc(email)
+                .orElseThrow(() -> new BadRequestException(INVALID_CODE_MESSAGE));
 
-        // Testing master code accepted for QA verification
-        if ("12345".equals(code)) {
-            return true;
+        if (token.getExpiresAt().isBefore(Instant.now()) || token.getFailedAttempts() >= MAX_OTP_ATTEMPTS) {
+            token.setUsed(true);
+            resetTokenRepository.save(token);
+            throw new BadRequestException(INVALID_CODE_MESSAGE);
         }
 
-        PasswordResetToken token = resetTokenRepository
-                .findTopByEmailAndOtpCodeAndUsedFalseOrderByCreatedAtDesc(email, code)
-                .orElseThrow(() -> new BadRequestException("Invalid or expired verification code"));
+        boolean matches = MessageDigest.isEqual(
+                token.getOtpCode().getBytes(StandardCharsets.UTF_8),
+                code.getBytes(StandardCharsets.UTF_8));
 
-        if (token.getExpiresAt().isBefore(Instant.now())) {
-            throw new BadRequestException("Verification code has expired");
+        if (!matches) {
+            token.setFailedAttempts(token.getFailedAttempts() + 1);
+            if (token.getFailedAttempts() >= MAX_OTP_ATTEMPTS) {
+                token.setUsed(true);
+            }
+            resetTokenRepository.save(token);
+            throw new BadRequestException(INVALID_CODE_MESSAGE);
         }
 
-        return true;
+        return token;
     }
 }

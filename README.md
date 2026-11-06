@@ -36,7 +36,7 @@ You can configure Supabase in **one of two ways**:
 4. All tables, indexes, constraints, and initial demo data (Mrs. Anita Sharma, Dr. David Mitchell, Vikram Rao, Elena Rostova, Priya Nair) are created instantly!
 
 ### Option 2: Automatic Spring Boot Flyway Connection
-Configure your Supabase connection strings in `src/main/resources/application-supabase.yml` or set environment variables:
+Configure your Supabase connection strings in `src/main/resources/application-supabase.properties` or set environment variables:
 ```bash
 SPRING_DATASOURCE_URL=jdbc:postgresql://db.<YOUR-PROJECT-REF>.supabase.co:5432/postgres?sslmode=require
 SPRING_DATASOURCE_USERNAME=postgres

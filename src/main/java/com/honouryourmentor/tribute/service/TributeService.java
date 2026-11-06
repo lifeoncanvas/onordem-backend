@@ -95,18 +95,27 @@ public class TributeService {
 
         Tribute saved = tributeRepository.save(tribute);
 
-        // Save media list if present
-        if (request.getAdditionalImages() != null && !request.getAdditionalImages().isEmpty()) {
-            List<TributeMedia> mediaList = new ArrayList<>();
-            for (int i = 0; i < request.getAdditionalImages().size(); i++) {
-                TributeMedia media = TributeMedia.builder()
-                        .tribute(saved)
-                        .mediaUrl(request.getAdditionalImages().get(i))
-                        .mediaType("IMAGE")
-                        .sortOrder(i)
-                        .build();
-                mediaList.add(media);
+        // Save photos, videos and the voice note as typed media rows
+        List<TributeMedia> mediaList = new ArrayList<>();
+        int order = 0;
+        if (request.getAdditionalImages() != null) {
+            for (String url : request.getAdditionalImages()) {
+                if (url != null && !url.isBlank()) {
+                    mediaList.add(TributeMedia.builder().tribute(saved).mediaUrl(url).mediaType("IMAGE").sortOrder(order++).build());
+                }
             }
+        }
+        if (request.getVideoUris() != null) {
+            for (String url : request.getVideoUris()) {
+                if (url != null && !url.isBlank()) {
+                    mediaList.add(TributeMedia.builder().tribute(saved).mediaUrl(url).mediaType("VIDEO").sortOrder(order++).build());
+                }
+            }
+        }
+        if (request.getAudioUri() != null && !request.getAudioUri().isBlank()) {
+            mediaList.add(TributeMedia.builder().tribute(saved).mediaUrl(request.getAudioUri()).mediaType("AUDIO").sortOrder(order++).build());
+        }
+        if (!mediaList.isEmpty()) {
             mediaRepository.saveAll(mediaList);
             saved.setMediaList(mediaList);
         }
@@ -280,9 +289,21 @@ public class TributeService {
     }
 
     public TributeDto mapToDto(Tribute tribute, String currentUserId) {
-        List<String> mediaUrls = new ArrayList<>();
+        List<String> imageUrls = new ArrayList<>();
+        List<String> videoUrls = new ArrayList<>();
+        String audioUrl = null;
         if (tribute.getMediaList() != null) {
-            mediaUrls = tribute.getMediaList().stream().map(TributeMedia::getMediaUrl).toList();
+            List<TributeMedia> sorted = tribute.getMediaList().stream()
+                    .sorted(java.util.Comparator.comparingInt(TributeMedia::getSortOrder))
+                    .toList();
+            for (TributeMedia m : sorted) {
+                String type = m.getMediaType() == null ? "IMAGE" : m.getMediaType().toUpperCase();
+                switch (type) {
+                    case "VIDEO" -> videoUrls.add(m.getMediaUrl());
+                    case "AUDIO" -> { if (audioUrl == null) audioUrl = m.getMediaUrl(); }
+                    default -> imageUrls.add(m.getMediaUrl());
+                }
+            }
         }
 
         boolean isLiked = false;
@@ -299,7 +320,9 @@ public class TributeService {
                 .mentorName(tribute.getMentorName())
                 .relationship(tribute.getRelationship())
                 .photoUri(tribute.getPhotoUri())
-                .additionalImages(mediaUrls)
+                .additionalImages(imageUrls)
+                .videoUris(videoUrls)
+                .audioUri(audioUrl)
                 .quote(tribute.getQuote())
                 .story(tribute.getStory())
                 .excerpt(tribute.getExcerpt())

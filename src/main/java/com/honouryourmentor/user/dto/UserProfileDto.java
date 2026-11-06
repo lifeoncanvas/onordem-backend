@@ -19,4 +19,8 @@ public class UserProfileDto {
     private String coverColor;
     private String phone;
     private String location;
+    private String birthday;
+    private String gender;
+    private java.util.List<String> honouring;
+    private boolean setupComplete;
 }

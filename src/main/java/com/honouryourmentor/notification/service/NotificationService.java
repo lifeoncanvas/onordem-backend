@@ -28,10 +28,11 @@ public class NotificationService {
     public void markAsRead(String notificationId, String userId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found: " + notificationId));
-        if (notification.getUserId().equals(userId)) {
-            notification.setRead(true);
-            notificationRepository.save(notification);
+        if (!notification.getUserId().equals(userId)) {
+            throw new ResourceNotFoundException("Notification not found: " + notificationId);
         }
+        notification.setRead(true);
+        notificationRepository.save(notification);
     }
 
     @Transactional
