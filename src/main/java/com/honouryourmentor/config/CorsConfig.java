@@ -13,15 +13,21 @@ import java.util.List;
 @Configuration
 public class CorsConfig {
 
-    @Value("${app.cors.allowed-origins:https://onodem.com,https://www.onodem.com,https://api.onodem.com,http://localhost:8081,http://localhost:19006,http://localhost:3000}")
+    /**
+     * Comma-separated origin patterns, e.g. "https://onodem.com,http://localhost:*".
+     * Set per profile in application*.properties (production lists only onodem.com).
+     */
+    @Value("${app.cors.allowed-origins:https://onodem.com,https://www.onodem.com}")
     private List<String> allowedOrigins;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
-        // Strict origin whitelist (no wildcard with credentials)
-        configuration.setAllowedOrigins(allowedOrigins);
+
+        // Explicit origins, with port wildcards allowed only where configured
+        // (e.g. any localhost port during development). Patterns, unlike "*",
+        // are compatible with credentials.
+        configuration.setAllowedOriginPatterns(allowedOrigins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList(
                 "Authorization",
