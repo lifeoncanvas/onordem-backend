@@ -13,3 +13,4 @@ public interface EmailDeliveryLogRepository extends JpaRepository<EmailDeliveryL
 
     List<EmailDeliveryLog> findByRecipientOrderBySentAtDesc(String recipient);
 }
+

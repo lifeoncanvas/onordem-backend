@@ -18,3 +18,4 @@ CREATE TABLE IF NOT EXISTS appreciation_notifications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_apprec_notif_sender_recip ON appreciation_notifications(sender_id, recipient_id);
+

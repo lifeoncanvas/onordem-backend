@@ -16,3 +16,4 @@ public interface AppreciationNotificationRepository extends JpaRepository<Apprec
 
     List<AppreciationNotification> findByRecipientIdOrderByCreatedAtDesc(String recipientId);
 }
+

@@ -14,3 +14,4 @@ CREATE TABLE IF NOT EXISTS email_delivery_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_email_logs_recipient ON email_delivery_logs(recipient);
 CREATE INDEX IF NOT EXISTS idx_email_logs_sent_at ON email_delivery_logs(sent_at);
+

@@ -46,3 +46,4 @@ public class AccountVerificationToken extends BaseEntity {
         }
     }
 }
+

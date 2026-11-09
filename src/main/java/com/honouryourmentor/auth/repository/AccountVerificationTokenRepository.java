@@ -13,3 +13,4 @@ public interface AccountVerificationTokenRepository extends JpaRepository<Accoun
 
     void deleteByEmail(String email);
 }
+

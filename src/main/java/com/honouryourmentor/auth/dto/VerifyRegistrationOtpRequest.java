@@ -20,3 +20,4 @@ public class VerifyRegistrationOtpRequest {
     @NotBlank(message = "Verification code is required")
     private String code;
 }
+
