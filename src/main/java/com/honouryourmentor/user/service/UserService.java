@@ -3,6 +3,10 @@ package com.honouryourmentor.user.service;
 import com.honouryourmentor.common.exception.BadRequestException;
 import com.honouryourmentor.common.exception.ResourceNotFoundException;
 import com.honouryourmentor.common.util.SanitizationUtil;
+import com.honouryourmentor.engagement.entity.AppreciationNotification;
+import com.honouryourmentor.engagement.repository.AppreciationNotificationRepository;
+import com.honouryourmentor.notification.service.EmailService;
+import com.honouryourmentor.notification.service.NotificationService;
 import com.honouryourmentor.user.dto.UpdateProfileRequest;
 import com.honouryourmentor.user.dto.UserProfileDto;
 import com.honouryourmentor.user.dto.UserSummaryDto;
@@ -14,12 +18,18 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
+    private final AppreciationNotificationRepository appreciationNotificationRepository;
+    private final EmailService emailService;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public UserProfileDto getProfileByUserId(String userId) {
@@ -148,6 +158,58 @@ public class UserService {
                 .username(user.getUsername())
                 .avatarUri(avatar)
                 .build();
+    }
+
+    /**
+     * Appreciate another user on the platform:
+     * - Dispatches "Someone Appreciated You on Onodem!" email to recipient
+     * - Creates in-app notification
+     * - Deduplicates within 24 hours to avoid spamming the recipient
+     */
+    @Transactional
+    public String appreciateUser(String senderId, String recipientId) {
+        if (senderId.equals(recipientId)) {
+            throw new BadRequestException("You cannot appreciate yourself");
+        }
+
+        User recipient = userRepository.findById(recipientId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + recipientId));
+
+        User sender = userRepository.findById(senderId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + senderId));
+
+        // Deduplication: Avoid duplicate email notification within 24 hours
+        Instant cooldown = Instant.now().minus(24, ChronoUnit.HOURS);
+        boolean recentlySent = appreciationNotificationRepository.existsBySenderIdAndRecipientIdAndCreatedAtAfter(
+                senderId, recipientId, cooldown
+        );
+
+        if (!recentlySent) {
+            AppreciationNotification record = AppreciationNotification.builder()
+                    .senderId(senderId)
+                    .recipientId(recipientId)
+                    .build();
+            appreciationNotificationRepository.save(record);
+
+            // Send branded appreciation email from info@onodem.com
+            emailService.sendAppreciationNotification(
+                    recipient.getEmail(),
+                    recipient.getName(),
+                    sender.getName()
+            );
+
+            // In-app notification
+            notificationService.createNotification(
+                    recipientId,
+                    "Someone Appreciated You on Onodem!",
+                    sender.getName() + " has appreciated you on the platform.",
+                    "APPRECIATION"
+            );
+
+            return "Appreciation notification sent to " + recipient.getName();
+        } else {
+            return "You have already appreciated " + recipient.getName() + " recently.";
+        }
     }
 
     private UserProfileDto mapToDto(User user, UserProfile profile) {

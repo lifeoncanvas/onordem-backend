@@ -45,4 +45,14 @@ public class UserController {
         UserSummaryDto summary = userService.getUserSummary(id);
         return ResponseEntity.ok(ApiResponse.ok(summary));
     }
+
+    @PostMapping("/{id}/appreciate")
+    @Operation(summary = "Appreciate another user and send appreciation email notification")
+    public ResponseEntity<ApiResponse<String>> appreciateUser(
+            @PathVariable String id,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        String message = userService.appreciateUser(currentUser.getId(), id);
+        return ResponseEntity.ok(ApiResponse.ok(message, null));
+    }
 }

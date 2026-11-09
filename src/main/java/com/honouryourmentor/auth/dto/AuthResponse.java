@@ -16,4 +16,7 @@ public class AuthResponse {
     @Builder.Default
     private String tokenType = "Bearer";
     private UserProfileDto user;
+    @Builder.Default
+    private boolean requiresVerification = false;
+    private String email;
 }

@@ -7,10 +7,14 @@ import com.honouryourmentor.common.util.SanitizationUtil;
 import com.honouryourmentor.engagement.dto.CommentDto;
 import com.honouryourmentor.engagement.dto.CreateCommentRequest;
 import com.honouryourmentor.engagement.dto.LikeStatusDto;
+import com.honouryourmentor.engagement.entity.AppreciationNotification;
 import com.honouryourmentor.engagement.entity.TributeComment;
 import com.honouryourmentor.engagement.entity.TributeLike;
+import com.honouryourmentor.engagement.repository.AppreciationNotificationRepository;
 import com.honouryourmentor.engagement.repository.TributeCommentRepository;
 import com.honouryourmentor.engagement.repository.TributeLikeRepository;
+import com.honouryourmentor.notification.service.EmailService;
+import com.honouryourmentor.notification.service.NotificationService;
 import com.honouryourmentor.tribute.entity.Tribute;
 import com.honouryourmentor.tribute.repository.TributeRepository;
 import com.honouryourmentor.user.entity.User;
@@ -32,6 +36,9 @@ public class EngagementService {
     private final TributeRepository tributeRepository;
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
+    private final AppreciationNotificationRepository appreciationNotificationRepository;
+    private final EmailService emailService;
+    private final NotificationService notificationService;
 
     @Transactional
     public LikeStatusDto toggleLike(String tributeId, String userId) {
@@ -57,6 +64,39 @@ public class EngagementService {
             likeRepository.save(like);
             tribute.setLikesCount(tribute.getLikesCount() + 1);
             likedNow = true;
+
+            // Send Appreciation Notification Email when someone appreciates (likes) another user's tribute
+            if (tribute.getUserId() != null && !tribute.getUserId().equals(userId)) {
+                boolean alreadyNotified = appreciationNotificationRepository.existsBySenderIdAndTributeId(userId, tributeId);
+                if (!alreadyNotified) {
+                    userRepository.findById(tribute.getUserId()).ifPresent(author -> {
+                        User sender = userRepository.findById(userId).orElse(null);
+                        String senderName = sender != null ? sender.getName() : "A community member";
+
+                        AppreciationNotification record = AppreciationNotification.builder()
+                                .senderId(userId)
+                                .recipientId(author.getId())
+                                .tributeId(tributeId)
+                                .build();
+                        appreciationNotificationRepository.save(record);
+
+                        // Dispatches official email from info@onodem.com
+                        emailService.sendAppreciationNotification(
+                                author.getEmail(),
+                                author.getName(),
+                                senderName
+                        );
+
+                        // Creates in-app notification
+                        notificationService.createNotification(
+                                author.getId(),
+                                "Someone Appreciated You on Onodem!",
+                                senderName + " has appreciated you on the platform.",
+                                "APPRECIATION"
+                        );
+                    });
+                }
+            }
         }
         tributeRepository.save(tribute);
 
