@@ -130,15 +130,16 @@ public class TributeService {
             });
         }
 
-        // Send dedication email if mentor email is provided
+        // Send dedication and appreciation email if recipient email is provided or if mentor is a registered user
+        String senderName = request.getSignature();
+        if (senderName == null || senderName.isBlank()) {
+            senderName = userRepository.findById(userId)
+                    .map(User::getName)
+                    .orElse("A Grateful Mentee");
+        }
+
         if (request.getRecipientEmail() != null && !request.getRecipientEmail().isBlank()) {
             String recipientEmail = request.getRecipientEmail().trim();
-            String senderName = request.getSignature();
-            if (senderName == null || senderName.isBlank()) {
-                senderName = userRepository.findById(userId)
-                        .map(User::getName)
-                        .orElse("A Grateful Mentee");
-            }
             String excerpt = request.getExcerpt() != null && !request.getExcerpt().isBlank()
                     ? request.getExcerpt()
                     : (request.getQuote() != null && !request.getQuote().isBlank() ? request.getQuote() : request.getStory());
@@ -151,6 +152,19 @@ public class TributeService {
                     excerpt,
                     saved.getId()
             );
+            emailService.sendAppreciationNotification(recipientEmail, mentorName, senderName);
+        } else if (mentorName != null && !mentorName.isBlank()) {
+            // Auto-check if the appreciated person is registered on Onodem by name or username
+            final String finalSender = senderName;
+            userRepository.findByNameIgnoreCase(mentorName.trim())
+                    .or(() -> userRepository.findByUsernameIgnoreCase(mentorName.trim()))
+                    .ifPresent(matchedUser -> {
+                        emailService.sendAppreciationNotification(
+                                matchedUser.getEmail(),
+                                matchedUser.getName(),
+                                finalSender
+                        );
+                    });
         }
 
         return mapToDto(saved, userId);
