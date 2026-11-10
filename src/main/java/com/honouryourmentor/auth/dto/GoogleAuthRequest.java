@@ -25,3 +25,4 @@ public class GoogleAuthRequest {
     @Schema(description = "Avatar image URL from Google profile")
     private String avatarUrl;
 }
+

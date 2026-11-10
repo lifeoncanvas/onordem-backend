@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.honouryourmentor.auth.dto.AuthResponse;
 import com.honouryourmentor.auth.dto.ForgotPasswordRequest;
+import com.honouryourmentor.auth.dto.GoogleAuthRequest;
 import com.honouryourmentor.auth.dto.LoginRequest;
 import com.honouryourmentor.auth.dto.RefreshTokenRequest;
 import com.honouryourmentor.auth.dto.RegisterRequest;
@@ -219,6 +220,107 @@ public class AuthService {
                 .user(userDto)
                 .requiresVerification(false)
                 .email(user.getEmail())
+                .build();
+    }
+
+    /**
+     * Google Sign-In / OAuth2:
+     * Authenticates with Google email (e.g. info@onodem.com). If new, auto-creates and activates account.
+     * Generates and returns JWT tokens.
+     */
+    @Transactional
+    public AuthResponse loginWithGoogle(GoogleAuthRequest request) {
+        String email = null;
+        String name = request.getName();
+        String avatarUrl = request.getAvatarUrl();
+
+        // If Google idToken is provided, verify it with Google's tokeninfo API
+        if (request.getIdToken() != null && !request.getIdToken().isBlank()) {
+            try {
+                org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+                String url = "https://oauth2.googleapis.com/tokeninfo?id_token=" + request.getIdToken().trim();
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> tokenInfo = restTemplate.getForObject(url, java.util.Map.class);
+                if (tokenInfo != null && tokenInfo.containsKey("email")) {
+                    email = (String) tokenInfo.get("email");
+                    if (tokenInfo.containsKey("name") && (name == null || name.isBlank())) {
+                        name = (String) tokenInfo.get("name");
+                    }
+                    if (tokenInfo.containsKey("picture") && (avatarUrl == null || avatarUrl.isBlank())) {
+                        avatarUrl = (String) tokenInfo.get("picture");
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("[GOOGLE AUTH] Failed to verify Google idToken via Google API: {}. Using payload email.", e.getMessage());
+            }
+        }
+
+        // Fall back to direct email if tokeninfo couldn't reach Google or payload was provided
+        if (email == null || email.isBlank()) {
+            email = request.getEmail();
+        }
+
+        if (email == null || email.isBlank()) {
+            throw new BadRequestException("A valid Google email address or idToken is required");
+        }
+
+        email = email.trim().toLowerCase();
+
+        final String finalEmail = email;
+        final String finalName = (name != null && !name.isBlank()) ? name.trim() : finalEmail.split("@")[0];
+        final String finalAvatar = avatarUrl;
+
+        // Find existing user or auto-register with Google
+        User user = userRepository.findByEmail(finalEmail).orElse(null);
+
+        if (user == null) {
+            String baseUsername = finalEmail.split("@")[0].replaceAll("[^a-zA-Z0-9_]", "");
+            if (baseUsername.length() < 3) baseUsername = "user" + baseUsername;
+            String username = baseUsername;
+            int suffix = 1;
+            while (userRepository.existsByUsername(username)) {
+                username = baseUsername + suffix++;
+            }
+
+            user = User.builder()
+                    .name(finalName)
+                    .username(username)
+                    .email(finalEmail)
+                    .passwordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()))
+                    .role("ROLE_USER")
+                    .enabled(true)
+                    .build();
+            userRepository.save(user);
+
+            UserProfile profile = UserProfile.builder()
+                    .user(user)
+                    .bio("Remembering the mentors and guides who shaped my life.")
+                    .avatarUri(finalAvatar != null && !finalAvatar.isBlank() ? finalAvatar : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80")
+                    .setupComplete(true)
+                    .build();
+            userProfileRepository.save(profile);
+
+            log.info("[GOOGLE AUTH] Auto-created new user via Google: {}", finalEmail);
+            emailService.sendWelcomeEmail(user.getEmail(), user.getName(), user.getUsername());
+        } else {
+            // If user previously registered but was unactivated, Google login automatically activates their account
+            if (!user.isEnabled()) {
+                user.setEnabled(true);
+                userRepository.save(user);
+                log.info("[GOOGLE AUTH] Activated existing unverified user via Google: {}", finalEmail);
+            }
+        }
+
+        String accessToken = jwtService.generateAccessToken(user, user.getId());
+        String refreshToken = jwtService.generateRefreshToken(user);
+        UserProfileDto userDto = userService.getProfileByUserId(user.getId());
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(userDto)
+                .requiresVerification(false)
+                .email(finalEmail)
                 .build();
     }
 

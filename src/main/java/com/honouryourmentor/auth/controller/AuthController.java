@@ -52,6 +52,13 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok("Login successful", response));
     }
 
+    @PostMapping("/google")
+    @Operation(summary = "Sign in or sign up with Google account")
+    public ResponseEntity<ApiResponse<AuthResponse>> googleLogin(@RequestBody GoogleAuthRequest request) {
+        AuthResponse response = authService.loginWithGoogle(request);
+        return ResponseEntity.ok(ApiResponse.ok("Google sign-in successful", response));
+    }
+
     @PostMapping("/refresh")
     @Operation(summary = "Refresh JWT access token")
     public ResponseEntity<ApiResponse<AuthResponse>> refresh(@Valid @RequestBody RefreshTokenRequest request) {
