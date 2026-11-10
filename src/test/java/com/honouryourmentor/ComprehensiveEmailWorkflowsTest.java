@@ -224,5 +224,47 @@ class ComprehensiveEmailWorkflowsTest {
 
         System.out.println("✅ Workflow 3 verified: Appreciation notification dispatched, deduplication enforced, and delivery tracked!");
     }
+
+    @Test
+    @Order(4)
+    void testGoogleSignInForAnyGmailAccount() {
+        System.out.println("=== WORKFLOW 4: GOOGLE SIGN-IN FOR ANY GMAIL USER ===");
+
+        String anyUserGmail = "newstudent." + System.currentTimeMillis() + "@gmail.com";
+
+        // 1. Any new user signs in with their Gmail
+        GoogleAuthRequest googleReq = GoogleAuthRequest.builder()
+                .email(anyUserGmail)
+                .name("Alice Wonder")
+                .avatarUrl("https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200")
+                .build();
+
+        AuthResponse googleRes = authService.loginWithGoogle(googleReq);
+
+        assertNotNull(googleRes.getAccessToken(), "Google sign-in must issue access token");
+        assertNotNull(googleRes.getRefreshToken(), "Google sign-in must issue refresh token");
+        assertEquals(anyUserGmail, googleRes.getEmail(), "Returned email must match Gmail account");
+        assertFalse(googleRes.isRequiresVerification(), "Google users are pre-verified");
+
+        User createdUser = userRepository.findByEmail(anyUserGmail).orElseThrow();
+        assertTrue(createdUser.isEnabled(), "Google account must be activated immediately");
+        assertEquals("Alice Wonder", createdUser.getName());
+
+        // 2. Existing user signs in again with Google (idempotent / seamless)
+        AuthResponse repeatLoginRes = authService.loginWithGoogle(googleReq);
+        assertNotNull(repeatLoginRes.getAccessToken());
+        assertEquals(createdUser.getId(), repeatLoginRes.getUser().getId());
+
+        // 3. Official domain account (info@onodem.com) can also sign in via Google
+        GoogleAuthRequest officialReq = GoogleAuthRequest.builder()
+                .email("info@onodem.com")
+                .name("Onodem Official")
+                .build();
+        AuthResponse officialRes = authService.loginWithGoogle(officialReq);
+        assertNotNull(officialRes.getAccessToken());
+        assertEquals("info@onodem.com", officialRes.getEmail());
+
+        System.out.println("✅ Workflow 4 verified: Any user can sign in through Google/Gmail seamlessly!");
+    }
 }
 
