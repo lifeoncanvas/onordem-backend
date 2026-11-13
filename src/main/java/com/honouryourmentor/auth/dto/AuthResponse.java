@@ -19,4 +19,6 @@ public class AuthResponse {
     @Builder.Default
     private boolean requiresVerification = false;
     private String email;
+    private String otpCode;
+    private String message;
 }

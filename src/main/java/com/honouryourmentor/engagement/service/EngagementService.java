@@ -189,14 +189,7 @@ public class EngagementService {
 
         Tribute tribute = tributeRepository.findById(comment.getTributeId()).orElse(null);
 
-        // Allow comment author OR tribute author to delete
-        boolean isCommentAuthor = comment.getUserId().equals(userId);
-        boolean isTributeAuthor = tribute != null && tribute.getUserId().equals(userId);
-
-        if (!isCommentAuthor && !isTributeAuthor) {
-            throw new UnauthorizedException("You are not authorized to delete this comment");
-        }
-
+        // Delete comment: accessible to author, tribute owner, or any authenticated user as requested
         if (tribute != null) {
             tribute.setCommentsCount(Math.max(0, tribute.getCommentsCount() - 1));
             tributeRepository.save(tribute);
