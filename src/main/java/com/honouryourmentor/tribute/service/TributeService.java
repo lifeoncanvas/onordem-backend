@@ -254,9 +254,12 @@ public class TributeService {
 
     @Transactional
     public void deleteTribute(String tributeId, String userId) {
-        // Enforce user ownership
-        Tribute tribute = tributeRepository.findByIdAndUserId(tributeId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Tribute not found or unauthorized: " + tributeId));
+        // Enforce user ownership or permit deleting legacy demo tributes
+        Tribute tribute = tributeRepository.findById(tributeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tribute not found: " + tributeId));
+        if (userId != null && !userId.equals(tribute.getUserId()) && !"u_demo_sarita".equals(tribute.getUserId())) {
+            throw new ResourceNotFoundException("Unauthorized to delete tribute: " + tributeId);
+        }
         String mentorId = tribute.getMentorId();
         tributeRepository.delete(tribute);
 
